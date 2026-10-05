@@ -1,10 +1,12 @@
 "use client";
 
+import { useControls } from "@/components/controls";
 import { TimelineChart, type TimelineChartSeries } from "@/components/data-table/data-table-chart/timeline-chart";
 import { DataTableFilterCommand } from "@/components/data-table/data-table-filter-command";
 import { DataTableInfinite } from "@/components/data-table/data-table-infinite";
 import { useDataTable } from "@/components/data-table/data-table-provider";
 import { DataTableRefreshButton } from "@/components/data-table/data-table-refresh-button";
+import { Button } from "@/components/ui/button";
 import { eventsOptions } from "@/lib/api/query-options";
 import type { EventRow, QueryMeta, SchemaResponse } from "@/lib/api/types";
 import { applyFacets, getFacetedMinMaxValues, getFacetedUniqueValues } from "@/lib/data-table";
@@ -20,6 +22,7 @@ import type { DataTableFeatures } from "@/lib/table/features";
 import { generateColumns, generateFilterFields, getDefaultColumnVisibility } from "@/lib/table-schema";
 import { useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
+import { SlidersHorizontal } from "lucide-react";
 import * as React from "react";
 import { MiniLineage } from "./mini-lineage";
 import { RunStatusPill } from "./status-pill";
@@ -129,7 +132,12 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
         toolbarActions={<DataTableRefreshButton onClick={refresh} />}
         commandSlot={
           <div className="flex flex-col gap-1">
-            <DataTableFilterCommand schema={filterSchema.definition} tableId="events" />
+            <div className="flex items-start gap-2">
+              <FiltersToggle />
+              <div className="min-w-0 flex-1">
+                <DataTableFilterCommand schema={filterSchema.definition} tableId="events" />
+              </div>
+            </div>
             {error && <p className="text-xs text-destructive">{error.message}</p>}
           </div>
         }
@@ -140,12 +148,30 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
   );
 }
 
+/** Shows or hides the filters panel; sits beside the search bar. */
+function FiltersToggle() {
+  const { open, setOpen } = useControls();
+  return (
+    <Button
+      variant="outline"
+      size="icon"
+      className="size-9 shrink-0 aria-pressed:bg-foreground/[0.1] aria-pressed:text-foreground"
+      aria-pressed={open}
+      aria-label={open ? "Hide filters" : "Show filters"}
+      title={open ? "Hide filters" : "Show filters"}
+      onClick={() => setOpen((v) => !v)}
+    >
+      <SlidersHorizontal className="size-4" />
+    </Button>
+  );
+}
+
 function Legend() {
   const { filterRows, totalRows } = useDataTable();
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
       <span className="font-mono">{(filterRows ?? 0).toLocaleString()} / {(totalRows ?? 0).toLocaleString()}</span>
-      {Object.entries(RUN_STATUS).map(([k, v]) => (
+      {Object.entries(RUN_STATUS).filter(([k]) => k !== "QUEUED").map(([k, v]) => (
         <span key={k} className="flex items-center gap-1">
           <span className="size-1.5 rounded-full" style={{ background: v.color }} /> {v.label}
         </span>

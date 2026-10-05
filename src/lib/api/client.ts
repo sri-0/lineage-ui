@@ -1,5 +1,5 @@
 import type {
-  EventDetail, Job, JobsResponse, LineageGraph, LogsResponse, LogTarget, MiniLineage, QueryRequest, QueryResponse,
+  EventDetail, Job, JobsResponse, LineageGraph, LiveSnapshot, LogsResponse, LogTarget, MiniLineage, QueryRequest, QueryResponse,
   RelatedResponse, SchemaResponse, OtlpTrace,
 } from "./types";
 
@@ -50,5 +50,7 @@ export const api = {
   logs: (runId: string, run: string, signal?: AbortSignal) => request<LogsResponse>(`/events/${runId}/logs${qs({ run })}`, { signal }),
   jobs: (params: { status?: string; cluster?: string; limit?: number } = {}, signal?: AbortSignal) => request<JobsResponse>(`/jobs${qs(params)}`, { signal }),
   job: (rayJobId: string, signal?: AbortSignal) => request<{ job: Job; ray?: Record<string, unknown> }>(`/jobs/${rayJobId}`, { signal }),
-  jobsStreamUrl: (params: { status?: string; cluster?: string } = {}) => `${API_BASE}/jobs/stream${qs(params)}`,
+  live: (signal?: AbortSignal) => request<LiveSnapshot>("/live", { signal }),
+  /** The live WebSocket: a snapshot, then deltas as runs change. */
+  liveWsUrl: () => `${API_BASE.replace(/^http/, "ws")}/live/ws`,
 };

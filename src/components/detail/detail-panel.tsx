@@ -3,6 +3,7 @@
 import { RunStatusPill } from "@/components/events/status-pill";
 import { Panel, PanelBody, PanelHeader } from "@/components/shell/panel";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { eventOptions, schemaOptions } from "@/lib/api/query-options";
@@ -11,7 +12,7 @@ import { formatDuration } from "@/lib/status";
 import { useTabs, type DetailTab } from "@/lib/store/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { Activity, GitBranch, Info, Link2, ScrollText } from "lucide-react";
+import { Activity, GitBranch, Info, Link2, PanelBottom, PanelRight, ScrollText } from "lucide-react";
 import { LineageTab } from "./lineage-tab";
 import { LogsTab } from "./logs-tab";
 import { MetadataTab } from "./metadata-tab";
@@ -31,6 +32,8 @@ export function DetailPanel({ runId }: { runId: string }) {
   const close = useTabs((s) => s.close);
   const tab = useTabs((s) => s.detailTab);
   const setTab = useTabs((s) => s.setDetailTab);
+  const position = useTabs((s) => s.detailPosition);
+  const setPosition = useTabs((s) => s.setDetailPosition);
   const { data, isLoading } = useQuery({ ...eventOptions(runId), refetchInterval: (q) => (q.state.data?.state.status === "RUNNING" ? 5000 : false) });
   const paths = useQuery(schemaOptions()).data?.paths ?? {};
   const start = (data?.start ?? {}) as Record<string, unknown>;
@@ -49,6 +52,18 @@ export function DetailPanel({ runId }: { runId: string }) {
               {data && <RunStatusPill status={data.state.status} />}
             </span>
           )
+        }
+        actions={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="size-7"
+            onClick={() => setPosition(position === "right" ? "bottom" : "right")}
+            aria-label={position === "right" ? "Dock panel to bottom" : "Dock panel to right"}
+            title={position === "right" ? "Dock to bottom" : "Dock to right"}
+          >
+            {position === "right" ? <PanelBottom className="size-4" /> : <PanelRight className="size-4" />}
+          </Button>
         }
         onClose={close}
       />

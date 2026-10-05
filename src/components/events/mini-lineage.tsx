@@ -2,6 +2,7 @@
 
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { miniOptions } from "@/lib/api/query-options";
+import type { MiniRun } from "@/lib/api/types";
 import { RUN_STATUS, formatDuration, tenancyColor } from "@/lib/status";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
@@ -11,19 +12,21 @@ import * as React from "react";
  * Compact strip of plugin runs: one block per plugin, width by duration,
  * coloured by status, grouped by tenancy. Fetched lazily when the row is
  * on screen; a hover card lists plugins with start times and durations.
+ * Live rows pass their steps inline (`runs`) and skip the fetch.
  */
-export function MiniLineage({ runId }: { runId: string }) {
+export function MiniLineage({ runId, runs: inline }: { runId: string; runs?: MiniRun[] }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [visible, setVisible] = React.useState(false);
   React.useEffect(() => {
+    if (inline) return;
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver((entries) => entries.some((e) => e.isIntersecting) && setVisible(true), { rootMargin: "200px" });
     io.observe(el);
     return () => io.disconnect();
-  }, []);
-  const { data } = useQuery({ ...miniOptions(runId), enabled: visible });
-  const runs = data?.runs ?? [];
+  }, [inline]);
+  const { data } = useQuery({ ...miniOptions(runId), enabled: visible && !inline });
+  const runs = inline ?? data?.runs ?? [];
   const tenancies = Array.from(new Set(runs.map((r) => r.tenancy)));
   const total = Math.max(1, runs.reduce((n, r) => n + Math.max(r.durationMs ?? 500, 200), 0));
 

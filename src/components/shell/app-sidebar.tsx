@@ -1,26 +1,29 @@
 "use client";
 
-import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "@/components/ui/sidebar";
+import {
+  Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuBadge,
+  SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar,
+} from "@/components/ui/sidebar";
+import { useLive } from "@/lib/live/store";
 import { useTabs } from "@/lib/store/tabs";
+import { cn } from "@/lib/utils";
 import { GitBranch, Radio } from "lucide-react";
+import { Brand } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
+/** The one place for Events / Live navigation; the header toggles the rail. */
 export function AppSidebar() {
   const tab = useTabs((s) => s.tab);
   const setTab = useTabs((s) => s.setTab);
+  const active = useLive((s) => s.counts.queued + s.counts.running);
+  const { state, toggleSidebar } = useSidebar();
   return (
     <Sidebar collapsible="icon">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Lineage" className="pointer-events-none">
-              <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <GitBranch className="size-4" />
-              </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Lineage</span>
-                <span className="truncate text-xs text-muted-foreground">processing provenance</span>
-              </div>
+            <SidebarMenuButton size="lg" tooltip="Lineage" onClick={toggleSidebar} className="px-1">
+              <Brand compact={state === "collapsed"} />
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -35,11 +38,20 @@ export function AppSidebar() {
                   <span>Events</span>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Live jobs" isActive={tab === "live"} onClick={() => setTab("live")}>
+              <SidebarMenuItem className="relative">
+                <SidebarMenuButton tooltip={active ? `Live · ${active} in flight` : "Live"} isActive={tab === "live"} onClick={() => setTab("live")}>
                   <Radio />
-                  <span>Live jobs</span>
+                  <span>Live</span>
                 </SidebarMenuButton>
+                {active > 0 && (
+                  <>
+                    <SidebarMenuBadge className="rounded-full bg-info/15 text-info">{active}</SidebarMenuBadge>
+                    <span
+                      aria-hidden
+                      className={cn("pointer-events-none absolute top-1 right-1 hidden size-1.5 rounded-full bg-info group-data-[collapsible=icon]:block")}
+                    />
+                  </>
+                )}
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
@@ -52,6 +64,7 @@ export function AppSidebar() {
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
+      <SidebarRail />
     </Sidebar>
   );
 }

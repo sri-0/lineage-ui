@@ -49,6 +49,7 @@ import type {
   Table as TTable,
 } from "@tanstack/react-table";
 import { flexRender, Subscribe, useTable } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { LoaderCircle } from "lucide-react";
 import * as React from "react";
 import { canLoadMore, columnSizeStyle } from "./utils";
@@ -126,6 +127,10 @@ export interface DataTableInfiniteProps<TData extends RowData> {
   footerSlot?: React.ReactNode;
   floatingBarSlot?: React.ReactNode;
   className?: string;
+  /** Render without the filters panel and its rail (the Live tab has its own toggles). */
+  hideFilters?: boolean;
+  /** Initial row height estimate for the virtualiser; rows are measured once rendered. */
+  estimateRowHeight?: number;
 }
 
 export function DataTableInfinite<TData extends RowData>({
@@ -157,6 +162,8 @@ export function DataTableInfinite<TData extends RowData>({
   footerSlot,
   floatingBarSlot,
   className,
+  hideFilters = false,
+  estimateRowHeight = 41,
 }: DataTableInfiniteProps<TData>) {
   const [columnFilters, setColumnFilters] =
     React.useState<ColumnFiltersState>(defaultColumnFilters);
@@ -174,6 +181,7 @@ export function DataTableInfinite<TData extends RowData>({
       defaultColumnVisibility,
     );
   const tableRef = React.useRef<HTMLTableElement>(null);
+  const containerRef = React.useRef<HTMLDivElement>(null);
 
   // Detect if a select column exists to enable multi-row selection
   const hasSelectColumn = React.useMemo(
@@ -311,6 +319,24 @@ export function DataTableInfinite<TData extends RowData>({
   const { setFilters } = useFilterActions();
 
   /**
+   * Row virtualisation: only the rows in (and just around) the viewport are
+   * mounted, so a long infinite list costs the same as a short one. Rows are
+   * measured after render (`measureElement`), so the estimate only has to be
+   * close. Spacer rows keep the sticky header and the scrollbar honest.
+   */
+  const rows = table.getRowModel().rows;
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => containerRef.current,
+    estimateSize: () => estimateRowHeight,
+    overscan: 8,
+    getItemKey: (index) => rows[index]?.id ?? index,
+  });
+  const virtualRows = virtualizer.getVirtualItems();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0]!.start : 0;
+  const paddingBottom = virtualRows.length > 0 ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1]!.end : 0;
+
+  /**
    * REMINDER: the detail row id is deliberately *not* read here.
    * Subscribing to it at this level re-rendered the entire table on every
    * detail click, and — because the callback closed over it — handed every
@@ -355,11 +381,11 @@ export function DataTableInfinite<TData extends RowData>({
         height, so only the filter list and the table container scroll.
       */}
       <ResizablePanelGroup orientation="horizontal" className={cn("h-full w-full", className)}>
-        <FilterPanel tableId={tableId} footerSlot={footerSlot} />
+        {!hideFilters && <FilterPanel tableId={tableId} footerSlot={footerSlot} />}
         <ResizablePanel id={`${tableId}-main`} minSize="30%" className="min-w-0">
           <Panel>
           <div className="border-border relative flex h-full max-w-full flex-1 flex-col" style={columnSizeVars as React.CSSProperties}>
-            <DataTableFilterRail />
+            {!hideFilters && <DataTableFilterRail />}
             <div
               className={cn(
                 "bg-background flex shrink-0 flex-col gap-4 p-2 pb-4",
@@ -377,6 +403,7 @@ export function DataTableInfinite<TData extends RowData>({
             <div className="z-0 min-h-0 flex-1">
               <Table
                 ref={tableRef}
+                containerRef={containerRef}
                 onScroll={onScroll}
                 // REMINDER: https://stackoverflow.com/questions/50361698/border-style-do-not-work-with-sticky-position-element
                 className="border-separate border-spacing-0"
@@ -443,20 +470,29 @@ export function DataTableInfinite<TData extends RowData>({
                   // header when "skip to content" focuses the body
                   style={{ scrollMarginTop: "40px" }}
                 >
-                  {table.getRowModel().rows?.length ? (
-                    table.getRowModel().rows.map((row) => (
-                      // REMINDER: if we want to add arrow navigation https://github.com/TanStack/table/discussions/2752#discussioncomment-192558
-                      <React.Fragment key={row.id}>
-                        {renderLiveRow?.({ row })}
-                        <MemoizedRow
-                          row={row}
-                          selected={row.getIsSelected()}
-                          isMultiSelect={hasSelectColumn}
-                          onRowClick={onRowClick}
-                          getRowClassName={getRowClassName}
-                        />
-                      </React.Fragment>
-                    ))
+                  {rows.length ? (
+                    <>
+                      {paddingTop > 0 && <tr aria-hidden style={{ height: paddingTop }} />}
+                      {virtualRows.map((virtualRow) => {
+                        const row = rows[virtualRow.index]!;
+                        return (
+                          // REMINDER: if we want to add arrow navigation https://github.com/TanStack/table/discussions/2752#discussioncomment-192558
+                          <React.Fragment key={row.id}>
+                            {renderLiveRow?.({ row })}
+                            <MemoizedRow
+                              row={row}
+                              index={virtualRow.index}
+                              measure={virtualizer.measureElement}
+                              selected={row.getIsSelected()}
+                              isMultiSelect={hasSelectColumn}
+                              onRowClick={onRowClick}
+                              getRowClassName={getRowClassName}
+                            />
+                          </React.Fragment>
+                        );
+                      })}
+                      {paddingBottom > 0 && <tr aria-hidden style={{ height: paddingBottom }} />}
+                    </>
                   ) : (
                     <React.Fragment>
                       {renderLiveRow?.()}
@@ -569,12 +605,18 @@ function FilterPanel({ tableId, footerSlot }: { tableId: string; footerSlot?: Re
 
 function Row<TData extends RowData>({
   row,
+  index,
+  measure,
   selected,
   isMultiSelect,
   onRowClick,
   getRowClassName,
 }: {
   row: Row<DataTableFeatures, TData>;
+  /** Position in the row model; the virtualiser reads it back from `data-index`. */
+  index: number;
+  /** `virtualizer.measureElement`: records the rendered height of this row. */
+  measure: (el: HTMLTableRowElement | null) => void;
   // REMINDER: row.getIsSelected(); - just for memoization
   selected?: boolean;
   // Whether the table renders a select column (multi-select + detail sheet)
@@ -609,6 +651,8 @@ function Row<TData extends RowData>({
   return (
     <TableRow
       id={row.id}
+      ref={measure}
+      data-index={index}
       tabIndex={0}
       // Single-select: data-state="selected" for the selected row
       // Multi-select: data-detail + data-checked are independent (a row can be both)
@@ -710,6 +754,7 @@ const MemoizedRow = React.memo(
   (prev, next) =>
     prev.row.id === next.row.id &&
     prev.row.original === next.row.original &&
+    prev.index === next.index &&
     prev.selected === next.selected &&
     prev.isMultiSelect === next.isMultiSelect &&
     prev.onRowClick === next.onRowClick &&

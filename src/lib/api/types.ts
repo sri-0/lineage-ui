@@ -15,6 +15,8 @@ export type SchemaField = {
   aggregatable: boolean;
   searchable: boolean;
   nestedPath?: string;
+  /** Exact-match multi-field of a text field (dynamic mapping of a new string field). */
+  keyword?: string;
   enum?: string[];
   description?: string;
 };
@@ -56,7 +58,7 @@ export type QueryMeta = {
   timeField?: string;
 };
 
-export type RunStatus = "RUNNING" | "COMPLETE" | "FAIL" | "ABORT";
+export type RunStatus = "QUEUED" | "RUNNING" | "COMPLETE" | "FAIL" | "ABORT";
 
 /** A top-level run row: the START event document plus list enrichment. */
 export type EventRow = Record<string, unknown> & {
@@ -144,7 +146,35 @@ export type Job = {
   startedAt?: string;
   updatedAt: string;
   finishedAt?: string;
-  progress: number;
+  /** Only present when the job-state service reports one; Ray itself has no progress. */
+  progress?: number;
   message?: string;
 };
 export type JobsResponse = { jobs: Job[]; total: number };
+
+/** One plugin step of a live run (same shape as MiniRun plus end state). */
+export type LiveStep = MiniRun & { endedAt?: string; error?: string };
+
+/** A live row: the top-level START document with list enrichment and live extras. */
+export type LiveRun = EventRow & {
+  _updatedAt: string;
+  _steps: LiveStep[];
+  _current: LiveStep | null;
+  _job: Job | null;
+  _cluster: string;
+  _priority: number | null;
+  _queuePosition: number | null;
+};
+
+export type LiveBucket = { t: number; events: number; started: number; completed: number; failed: number };
+export type LiveStats = {
+  at: string;
+  byStatus: Record<string, number>;
+  byPriority: { priority: number; count: number }[];
+  byCluster: { cluster: string; running: number; queued: number }[];
+  series: LiveBucket[];
+  retain: string;
+};
+export type LiveSnapshot = { type: "snapshot"; at: string; runs: LiveRun[]; stats: LiveStats };
+export type LiveDelta = { type: "delta"; at: string; runs?: LiveRun[]; removed?: string[]; stats?: LiveStats };
+export type LiveMessage = LiveSnapshot | LiveDelta;

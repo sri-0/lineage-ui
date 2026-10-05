@@ -3,16 +3,20 @@ import * as React from "react";
 
 interface TableProps extends React.ComponentProps<"table"> {
   containerClassName?: string;
+  /** The scrolling container, for row virtualisation. */
+  containerRef?: React.Ref<HTMLDivElement>;
 }
 
 function Table({
   className,
   containerClassName,
+  containerRef,
   onScroll,
   ...props
 }: TableProps) {
   return (
     <div
+      ref={containerRef}
       // `relative` makes this the containing block for anything absolutely
       // positioned inside a cell (an `sr-only` label, a tooltip anchor), so it
       // scrolls and clips with the rows instead of stretching the page.

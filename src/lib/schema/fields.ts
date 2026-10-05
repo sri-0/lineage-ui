@@ -45,7 +45,7 @@ export function gridFields(schema: SchemaResponse): ApiField[] {
     .filter((f) => f.type !== "flat_object")
     .map((f) => {
       const short = f.name.replace(/^promoted\./, "");
-      return { ...f, kind: kindOf(f.type), label: short, hidden: DEFAULT_HIDDEN.has(short) };
+      return { ...f, kind: f.keyword ? "keyword" : kindOf(f.type), label: short, hidden: DEFAULT_HIDDEN.has(short) };
     })
     .filter((f) => !INTERNAL.has(f.label) || f.name === schema.timeField);
 }

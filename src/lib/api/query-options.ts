@@ -22,5 +22,3 @@ export const traceOptions = (runId: string) => queryOptions({ queryKey: ["trace"
 export const logTargetsOptions = (runId: string) => queryOptions({ queryKey: ["log-targets", runId], queryFn: ({ signal }) => api.logTargets(runId, signal) });
 export const logsOptions = (runId: string, run: string) =>
   queryOptions({ queryKey: ["logs", runId, run], queryFn: ({ signal }) => api.logs(runId, run, signal), retry: false, enabled: !!run });
-export const jobsOptions = (params: { status?: string; cluster?: string } = {}) =>
-  queryOptions({ queryKey: ["jobs", params], queryFn: ({ signal }) => api.jobs({ ...params, limit: 500 }, signal), staleTime: 5_000 });

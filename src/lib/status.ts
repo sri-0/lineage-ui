@@ -2,6 +2,7 @@ import type { JobStatus, RunStatus } from "@/lib/api/types";
 
 /** One place for status colours shared by pills, graph nodes, mini strips and the waterfall. */
 export const RUN_STATUS: Record<RunStatus, { label: string; className: string; color: string }> = {
+  QUEUED: { label: "Queued", className: "bg-muted text-muted-foreground border-border", color: "var(--muted-foreground)" },
   RUNNING: { label: "Running", className: "bg-info/15 text-info border-info/30", color: "var(--info)" },
   COMPLETE: { label: "Complete", className: "bg-success/15 text-success border-success/30", color: "var(--success)" },
   FAIL: { label: "Failed", className: "bg-error/15 text-error border-error/30", color: "var(--error)" },
