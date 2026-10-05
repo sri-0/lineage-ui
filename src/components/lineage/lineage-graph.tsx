@@ -102,7 +102,7 @@ function Canvas({ graph, selectedId, onSelect, className }: Props) {
 
   return (
     <div className={className}>
-      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.1, maxZoom: 1 }} minZoom={0.1} proOptions={{ hideAttribution: true }} nodesConnectable={false} onPaneClick={() => onSelect(null)} className="bg-background">
+      <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} fitView fitViewOptions={{ padding: 0.1, maxZoom: 1 }} minZoom={0.1} nodesConnectable={false} onPaneClick={() => onSelect(null)} className="bg-background">
         <Background gap={24} className="opacity-40!" />
         <Controls showInteractive={false} className="rounded-md border" />
         <MiniMap pannable zoomable className="rounded-md border" nodeColor={(n) => (n.type === "group" ? "transparent" : n.type === "dataset" ? "#64748b" : "#94a3b8")} maskColor="color-mix(in oklab, var(--background) 70%, transparent)" bgColor="var(--card)" />
