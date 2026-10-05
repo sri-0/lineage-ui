@@ -86,9 +86,6 @@ function LiveTable({ schema }: { schema: SchemaResponse }) {
   const defaultVisibility = React.useMemo(() => getDefaultColumnVisibility(tableSchema.definition), [tableSchema]);
 
   const byId = useLive((s) => s.runs);
-  const counts = useLive((s) => s.counts);
-  const connection = useLive((s) => s.status);
-  const stats = useLive((s) => s.stats);
   const [status, setStatus] = React.useState<StatusFilter>("active");
   const [cluster, setCluster] = React.useState("");
   const [q, setQ] = React.useState("");
@@ -139,40 +136,57 @@ function LiveTable({ schema }: { schema: SchemaResponse }) {
         getRowClassName={rowClass}
         hideFilters
         tableId="live"
-        commandSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            <ToggleGroup type="single" size="sm" spacing={1} value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} className="rounded-lg bg-muted/60 p-[3px]">
-              <ToggleGroupItem value="active" className="h-7 gap-1.5 px-2.5 text-xs">
-                Active <Count n={counts.queued + counts.running} />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="queued" className="h-7 gap-1.5 px-2.5 text-xs">
-                Queued <Count n={counts.queued} />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="running" className="h-7 gap-1.5 px-2.5 text-xs">
-                Running <Count n={counts.running} />
-              </ToggleGroupItem>
-              <ToggleGroupItem value="finished" className="h-7 gap-1.5 px-2.5 text-xs">
-                Finished <Count n={counts.finished} />
-              </ToggleGroupItem>
-            </ToggleGroup>
-            <ToggleGroup type="single" size="sm" spacing={1} value={cluster} onValueChange={(v) => setCluster(v ?? "")} className="rounded-lg bg-muted/60 p-[3px]">
-              <ToggleGroupItem value="" className="h-7 px-2.5 text-xs">All clusters</ToggleGroupItem>
-              {clusters.map((c) => (
-                <ToggleGroupItem key={c} value={c} className="h-7 px-2.5 font-mono text-xs">{c}</ToggleGroupItem>
-              ))}
-            </ToggleGroup>
-            <div className="relative">
-              <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Quick search: file, project, plugin, id" className="h-8 w-72 pl-8 text-xs" />
-            </div>
-            <LiveBadge status={connection} className="ml-auto" />
-          </div>
-        }
-        chartSlot={<LiveCharts stats={stats} />}
+        commandSlot={<LiveControls status={status} setStatus={setStatus} cluster={cluster} setCluster={setCluster} clusters={clusters} q={q} setQ={setQ} />}
+        chartSlot={<LiveCharts />}
       />
     </div>
   );
 }
+
+type ControlsProps = {
+  status: StatusFilter;
+  setStatus: (s: StatusFilter) => void;
+  cluster: string;
+  setCluster: (c: string) => void;
+  clusters: string[];
+  q: string;
+  setQ: (q: string) => void;
+};
+
+/** Toggles, quick search and the connection badge. Reads counts itself so the grid does not re-render for them. */
+const LiveControls = React.memo(function LiveControls({ status, setStatus, cluster, setCluster, clusters, q, setQ }: ControlsProps) {
+  const counts = useLive((s) => s.counts);
+  const connection = useLive((s) => s.status);
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <ToggleGroup type="single" size="sm" spacing={1} value={status} onValueChange={(v) => v && setStatus(v as StatusFilter)} className="rounded-lg bg-muted/60 p-[3px]">
+        <ToggleGroupItem value="active" className="h-7 gap-1.5 px-2.5 text-xs">
+          Active <Count n={counts.queued + counts.running} />
+        </ToggleGroupItem>
+        <ToggleGroupItem value="queued" className="h-7 gap-1.5 px-2.5 text-xs">
+          Queued <Count n={counts.queued} />
+        </ToggleGroupItem>
+        <ToggleGroupItem value="running" className="h-7 gap-1.5 px-2.5 text-xs">
+          Running <Count n={counts.running} />
+        </ToggleGroupItem>
+        <ToggleGroupItem value="finished" className="h-7 gap-1.5 px-2.5 text-xs">
+          Finished <Count n={counts.finished} />
+        </ToggleGroupItem>
+      </ToggleGroup>
+      <ToggleGroup type="single" size="sm" spacing={1} value={cluster} onValueChange={(v) => setCluster(v ?? "")} className="rounded-lg bg-muted/60 p-[3px]">
+        <ToggleGroupItem value="" className="h-7 px-2.5 text-xs">All clusters</ToggleGroupItem>
+        {clusters.map((c) => (
+          <ToggleGroupItem key={c} value={c} className="h-7 px-2.5 font-mono text-xs">{c}</ToggleGroupItem>
+        ))}
+      </ToggleGroup>
+      <div className="relative">
+        <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Quick search: file, project, plugin, id" className="h-8 w-72 pl-8 text-xs" />
+      </div>
+      <LiveBadge status={connection} className="ml-auto" />
+    </div>
+  );
+});
 
 function Count({ n }: { n: number }) {
   return <span className="rounded-full bg-foreground/[0.08] px-1.5 font-mono text-[10px] tabular-nums">{n}</span>;
@@ -316,10 +330,15 @@ function StepCell({ run }: { run: LiveRun }) {
   return <span className="text-xs text-muted-foreground">{n} steps{run._error ? ` · ${run._error}` : ""}</span>;
 }
 
-/** Progress is whatever the job-state store reports; nothing is invented when it is absent. */
+/**
+ * Progress is whatever the job-state store reports; nothing is invented when it
+ * is absent. It is read from the store's volatile slice, so a progress tick
+ * re-renders this cell alone rather than the row.
+ */
 function ProgressCell({ run }: { run: LiveRun }) {
-  const p = run._job?.progress;
-  const running = run._status === "RUNNING" && run._job?.status === "RUNNING";
+  const v = useLive((s) => s.volatile[run._runId]);
+  const p = v?.progress;
+  const running = run._status === "RUNNING" && v?.jobStatus === "RUNNING";
   if (p === undefined || p === null || !running) {
     return (
       <span className="text-xs text-muted-foreground" title="No progress reported for this step">

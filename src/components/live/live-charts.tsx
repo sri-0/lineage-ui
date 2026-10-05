@@ -1,7 +1,7 @@
 "use client";
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import type { LiveStats } from "@/lib/api/types";
+import { useLive } from "@/lib/live/store";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import * as React from "react";
@@ -25,7 +25,8 @@ const hhmm = (t: number) => format(t, "HH:mm");
  * without animation and the stats feed is throttled upstream, so redraws are
  * cheap even on slow machines.
  */
-export const LiveCharts = React.memo(function LiveCharts({ stats }: { stats: LiveStats | null }) {
+export const LiveCharts = React.memo(function LiveCharts() {
+  const stats = useLive((s) => s.stats);
   const series = stats?.series ?? [];
   const last5 = series.slice(-6, -1); // whole minutes only
   const perMin = last5.length ? last5.reduce((n, b) => n + b.completed, 0) / last5.length : 0;

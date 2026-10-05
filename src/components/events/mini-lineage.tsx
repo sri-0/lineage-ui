@@ -14,7 +14,7 @@ import * as React from "react";
  * on screen; a hover card lists plugins with start times and durations.
  * Live rows pass their steps inline (`runs`) and skip the fetch.
  */
-export function MiniLineage({ runId, runs: inline }: { runId: string; runs?: MiniRun[] }) {
+export const MiniLineage = React.memo(function MiniLineage({ runId, runs: inline }: { runId: string; runs?: MiniRun[] }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const [visible, setVisible] = React.useState(false);
   React.useEffect(() => {
@@ -70,4 +70,4 @@ export function MiniLineage({ runId, runs: inline }: { runId: string; runs?: Min
       )}
     </div>
   );
-}
+});

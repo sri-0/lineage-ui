@@ -7,10 +7,19 @@ import { create } from "zustand";
 export type LiveConnection = "connecting" | "live" | "off";
 type Counts = { queued: number; running: number; finished: number };
 
+/**
+ * The fast-changing part of a run, kept apart from the row so a progress tick
+ * does not re-render the whole row: only the cells that subscribe to it.
+ */
+export type Volatile = { progress?: number; message?: string; jobStatus?: string; updatedAt: string };
+
 type LiveStore = {
   status: LiveConnection;
-  /** Live runs by top-level run id. Only runs that changed get a new object, so row memos hold. */
+  /** Rows by top-level run id. A row object is replaced only when something the row shows has changed. */
   runs: Record<string, LiveRun>;
+  /** Structural fingerprint per run, used to decide whether a row object must be replaced. */
+  keys: Record<string, string>;
+  volatile: Record<string, Volatile>;
   counts: Counts;
   stats: LiveStats | null;
   statsAt: number;
@@ -31,6 +40,19 @@ function flatten(r: LiveRun): LiveRun {
   return out;
 }
 
+/** Everything a row renders except progress; the START document itself never changes. */
+function rowKey(r: LiveRun): string {
+  return JSON.stringify([
+    r._status, r._endedAt, r._error, r._cluster, r._priority, r._queuePosition, r._current?.id,
+    r._steps.map((s) => `${s.id}:${s.status}:${s.endedAt ?? ""}`),
+    r._job?.rayJobId, r._job?.status, r._job?.queuedAt, r._job?.plugin,
+  ]);
+}
+
+function volatileOf(r: LiveRun): Volatile {
+  return { progress: r._job?.progress, message: r._job?.message, jobStatus: r._job?.status, updatedAt: r._updatedAt };
+}
+
 function count(runs: Record<string, LiveRun>): Counts {
   const c: Counts = { queued: 0, running: 0, finished: 0 };
   for (const r of Object.values(runs)) {
@@ -44,6 +66,8 @@ function count(runs: Record<string, LiveRun>): Counts {
 export const useLive = create<LiveStore>()((set) => ({
   status: "connecting",
   runs: {},
+  keys: {},
+  volatile: {},
   counts: { queued: 0, running: 0, finished: 0 },
   stats: null,
   statsAt: 0,
@@ -54,18 +78,59 @@ export const useLive = create<LiveStore>()((set) => ({
       const now = Date.now();
       if (m.type === "snapshot") {
         const runs: Record<string, LiveRun> = {};
-        for (const r of m.runs) runs[r._runId] = flatten(r);
-        return { runs, counts: count(runs), stats: m.stats, statsAt: now, at: m.at };
+        const keys: Record<string, string> = {};
+        const volatile: Record<string, Volatile> = {};
+        for (const r of m.runs) {
+          runs[r._runId] = flatten(r);
+          keys[r._runId] = rowKey(r);
+          volatile[r._runId] = volatileOf(r);
+        }
+        return { runs, keys, volatile, counts: count(runs), stats: m.stats, statsAt: now, at: m.at };
       }
       let runs = s.runs;
-      if (m.runs?.length || m.removed?.length) {
-        runs = { ...s.runs };
-        for (const r of m.runs ?? []) runs[r._runId] = flatten(r);
-        for (const id of m.removed ?? []) delete runs[id];
+      let keys = s.keys;
+      let volatile = s.volatile;
+      const copy = () => {
+        if (runs === s.runs) {
+          runs = { ...s.runs };
+          keys = { ...s.keys };
+        }
+      };
+      for (const r of m.runs ?? []) {
+        const id = r._runId;
+        const key = rowKey(r);
+        if (keys[id] !== key) {
+          copy();
+          runs[id] = flatten(r);
+          keys[id] = key;
+        }
+        const v = volatileOf(r);
+        const pv = volatile[id];
+        if (!pv || pv.progress !== v.progress || pv.message !== v.message || pv.jobStatus !== v.jobStatus) {
+          if (volatile === s.volatile) volatile = { ...s.volatile };
+          volatile[id] = v;
+        }
+      }
+      for (const id of m.removed ?? []) {
+        if (id in runs) {
+          copy();
+          delete runs[id];
+          delete keys[id];
+        }
+        if (id in volatile) {
+          if (volatile === s.volatile) volatile = { ...s.volatile };
+          delete volatile[id];
+        }
       }
       // Charts redraw at most every couple of seconds; rows update every tick.
       const takeStats = m.stats && (!s.stats || now - s.statsAt >= STATS_EVERY_MS);
-      return { runs, counts: runs === s.runs ? s.counts : count(runs), stats: takeStats ? m.stats! : s.stats, statsAt: takeStats ? now : s.statsAt, at: m.at };
+      return {
+        runs, keys, volatile,
+        counts: runs === s.runs ? s.counts : count(runs),
+        stats: takeStats ? m.stats! : s.stats,
+        statsAt: takeStats ? now : s.statsAt,
+        at: m.at,
+      };
     }),
 }));
 

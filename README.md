@@ -7,6 +7,8 @@ in-flight work. Same stack and conventions as `query-ui`.
 
 ![Events grid with the lineage detail panel open](docs/screenshot-events.png)
 
+![Live tab: in-flight runs over a WebSocket, with charts](docs/screenshot-live.png)
+
 - `src/components/events` — grid, status pills, mini lineage strip
 - `src/components/detail` — detail panel and its tabs
 - `src/components/lineage` — React Flow canvas, ELK layout, node renderers
