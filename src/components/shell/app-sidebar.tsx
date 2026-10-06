@@ -2,57 +2,51 @@
 
 import {
   Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarHeader, SidebarMenu, SidebarMenuBadge,
-  SidebarMenuButton, SidebarMenuItem, SidebarRail, useSidebar,
+  SidebarMenuButton, SidebarMenuItem, SidebarRail, SidebarTrigger,
 } from "@/components/ui/sidebar";
-import { useLive } from "@/lib/live/store";
-import { useTabs } from "@/lib/store/tabs";
-import { cn } from "@/lib/utils";
+import { useDashboard } from "@/lib/dashboard/store";
 import { GitBranch, Radio } from "lucide-react";
+import Link from "next/link";
+import type { View } from "./app-shell";
 import { Brand } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
-/** The one place for Events / Live navigation; the header toggles the rail. */
-export function AppSidebar() {
-  const tab = useTabs((s) => s.tab);
-  const setTab = useTabs((s) => s.setTab);
-  const active = useLive((s) => s.counts.queued + s.counts.running);
-  const { state, toggleSidebar } = useSidebar();
+const NAV: { view: View; href: string; label: string; tooltip: string; icon: typeof Radio }[] = [
+  { view: "events", href: "/events", label: "Events", tooltip: "Events dashboard", icon: Radio },
+  { view: "lineage", href: "/lineage", label: "Lineage", tooltip: "Lineage", icon: GitBranch },
+];
+
+/** The one place for navigation: Events (the dashboard) and Lineage (everything indexed). */
+export function AppSidebar({ view }: { view: View }) {
+  const active = useDashboard((s) => s.counts.queued + s.counts.running);
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Lineage" onClick={toggleSidebar} className="p-1 group-data-[collapsible=icon]:p-1!">
-              <Brand compact={state === "collapsed"} />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+      <SidebarHeader className="h-14 justify-center px-2">
+        <div className="flex items-center gap-2 px-1 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
+          <Brand />
+          <SidebarTrigger className="ml-auto size-7 text-muted-foreground group-data-[collapsible=icon]:hidden" />
+        </div>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup>
+        <SidebarGroup className="pt-0">
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton tooltip="Events" isActive={tab === "events"} onClick={() => setTab("events")}>
-                  <GitBranch />
-                  <span>Events</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem className="relative">
-                <SidebarMenuButton tooltip={active ? `Live · ${active} in flight` : "Live"} isActive={tab === "live"} onClick={() => setTab("live")}>
-                  <Radio />
-                  <span>Live</span>
-                </SidebarMenuButton>
-                {active > 0 && (
-                  <>
-                    <SidebarMenuBadge className="rounded-full bg-info/15 text-info">{active}</SidebarMenuBadge>
-                    <span
-                      aria-hidden
-                      className={cn("pointer-events-none absolute top-1 right-1 hidden size-1.5 rounded-full bg-info group-data-[collapsible=icon]:block")}
-                    />
-                  </>
-                )}
-              </SidebarMenuItem>
+              {NAV.map((item) => (
+                <SidebarMenuItem key={item.view}>
+                  <SidebarMenuButton asChild tooltip={item.view === "events" && active ? `${item.tooltip} · ${active} in flight` : item.tooltip} isActive={view === item.view}>
+                    <Link href={item.href}>
+                      <item.icon />
+                      <span>{item.label}</span>
+                    </Link>
+                  </SidebarMenuButton>
+                  {item.view === "events" && active > 0 && (
+                    <>
+                      <SidebarMenuBadge className="h-5 min-w-5 rounded-full bg-info/15 px-1.5 text-[10px] font-medium text-info">{active}</SidebarMenuBadge>
+                      <span aria-hidden className="pointer-events-none absolute top-1 right-1 hidden size-1.5 rounded-full bg-info group-data-[collapsible=icon]:block" />
+                    </>
+                  )}
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

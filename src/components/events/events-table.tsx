@@ -7,6 +7,7 @@ import { DataTableInfinite } from "@/components/data-table/data-table-infinite";
 import { useDataTable } from "@/components/data-table/data-table-provider";
 import { DataTableRefreshButton } from "@/components/data-table/data-table-refresh-button";
 import { Button } from "@/components/ui/button";
+import { api } from "@/lib/api/client";
 import { eventsOptions } from "@/lib/api/query-options";
 import type { EventRow, QueryMeta, SchemaResponse } from "@/lib/api/types";
 import { applyFacets, getFacetedMinMaxValues, getFacetedUniqueValues } from "@/lib/data-table";
@@ -95,7 +96,22 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
   );
   const meta: QueryMeta | undefined = data?.pages[0]?.meta;
   const facets = React.useMemo(() => (meta?.facets ? Object.fromEntries(Object.entries(meta.facets).map(([k, f]) => [k, { ...f, rows: f.rows ?? [] }])) : undefined), [meta]);
-  const dynamicFilterFields = React.useMemo(() => applyFacets(filterFields, facets), [filterFields, facets]);
+  // Facets give each checkbox filter the top values of the current result set; the search box in a
+  // filter asks the values endpoint for the rest, over the same result set minus that field's own
+  // filter, so a user can always widen a filter again.
+  const dynamicFilterFields = React.useMemo(
+    () =>
+      applyFacets(filterFields, facets).map((f) =>
+        f.type === "checkbox"
+          ? {
+              ...f,
+              loadValues: (q: string, signal?: AbortSignal) =>
+                api.values({ field: String(f.value), q, size: 50, filters: (body.filters ?? []).filter((x) => x.field !== String(f.value)) }, signal).then((r) => r.values as { value: string | number | boolean; total: number }[]),
+            }
+          : f,
+      ),
+    [filterFields, facets, body.filters],
+  );
   const [defaultColumnFilters] = React.useState(() =>
     Object.entries(state)
       .filter(([k, v]) => !STATE_KEYS.has(k) && isActive(v))

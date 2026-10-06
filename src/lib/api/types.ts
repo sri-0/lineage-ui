@@ -153,10 +153,10 @@ export type Job = {
 export type JobsResponse = { jobs: Job[]; total: number };
 
 /**
- * One plugin step of a live run, keyed by Ray job id. The job-state store is
- * the source; OpenLineage adds the plugin run id and exact timings once indexed.
+ * One plugin step of a dashboard run, keyed by Ray job id. The job-state store
+ * is the source; OpenLineage adds the plugin run id and exact timings once indexed.
  */
-export type LiveStep = MiniRun & {
+export type DashboardStep = MiniRun & {
   runId?: string;
   endedAt?: string;
   error?: string;
@@ -168,17 +168,17 @@ export type LiveStep = MiniRun & {
 };
 
 /**
- * A live row: run state from the job store, plus the top-level START document
- * (and the events list enrichment) once OpenLineage has been indexed
+ * A dashboard row: run state from the job store, plus the top-level START
+ * document (and the events list enrichment) once OpenLineage has been indexed
  * (`_enriched`). Without it the document fields are simply absent.
  */
-export type LiveRun = EventRow & {
+export type DashboardRun = EventRow & {
   _rootId: string;
   _enriched: boolean;
   _startedAt: string;
   _updatedAt: string;
-  _steps: LiveStep[];
-  _current: LiveStep | null;
+  _steps: DashboardStep[];
+  _current: DashboardStep | null;
   _job: Job | null;
   _cluster: string;
   _priority: number | null;
@@ -186,18 +186,22 @@ export type LiveRun = EventRow & {
 };
 
 /** Jobs per minute from job-store transitions. */
-export type LiveBucket = { t: number; started: number; finished: number; failed: number };
-export type LiveStats = {
+export type DashboardBucket = { t: number; started: number; finished: number; failed: number };
+export type DashboardStats = {
   at: string;
   source: string;
   byStatus: Record<string, number>;
   byPriority: { priority: number; count: number }[];
   byCluster: { cluster: string; running: number; queued: number }[];
-  series: LiveBucket[];
+  series: DashboardBucket[];
   retain: string;
   enriched: number;
   runs: number;
 };
-export type LiveSnapshot = { type: "snapshot"; at: string; runs: LiveRun[]; stats: LiveStats };
-export type LiveDelta = { type: "delta"; at: string; runs?: LiveRun[]; removed?: string[]; stats?: LiveStats };
-export type LiveMessage = LiveSnapshot | LiveDelta;
+export type DashboardSnapshot = { type: "snapshot"; at: string; runs: DashboardRun[]; stats: DashboardStats };
+export type DashboardDelta = { type: "delta"; at: string; runs?: DashboardRun[]; removed?: string[]; stats?: DashboardStats };
+export type DashboardMessage = DashboardSnapshot | DashboardDelta;
+
+/** Distinct values of one field over the runs matching `filters`, optionally narrowed by a substring. */
+export type ValuesRequest = { field: string; q?: string; size?: number; filters?: Filter[] };
+export type ValuesResponse = { field: string; values: FacetRow[] };

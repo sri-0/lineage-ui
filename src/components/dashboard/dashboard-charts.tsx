@@ -1,7 +1,7 @@
 "use client";
 
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { useLive } from "@/lib/live/store";
+import { useDashboard } from "@/lib/dashboard/store";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import * as React from "react";
@@ -20,13 +20,13 @@ const throughputConfig = {
 const hhmm = (t: number) => format(t, "HH:mm");
 
 /**
- * Four compact panels above the live grid, all from the job store: what is in
+ * Four compact panels above the dashboard grid, all from the job store: what is in
  * flight, jobs started and finished per minute, throughput with the failure
  * rate, and the queue by priority. Recharts runs without animation and the
  * stats feed is throttled upstream, so redraws are cheap even on slow machines.
  */
-export const LiveCharts = React.memo(function LiveCharts() {
-  const stats = useLive((s) => s.stats);
+export const DashboardCharts = React.memo(function DashboardCharts() {
+  const stats = useDashboard((s) => s.stats);
   const series = React.useMemo(() => (stats?.series ?? []).map((b) => ({ ...b, ok: b.finished - b.failed })), [stats?.series]);
   const last5 = series.slice(-6, -1); // whole minutes only
   const perMin = last5.length ? last5.reduce((n, b) => n + b.finished, 0) / last5.length : 0;

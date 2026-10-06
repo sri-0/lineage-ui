@@ -1,6 +1,6 @@
 import type {
-  EventDetail, Job, JobsResponse, LineageGraph, LiveSnapshot, LogsResponse, LogTarget, MiniLineage, QueryRequest, QueryResponse,
-  RelatedResponse, SchemaResponse, OtlpTrace,
+  DashboardSnapshot, EventDetail, Job, JobsResponse, LineageGraph, LogsResponse, LogTarget, MiniLineage, QueryRequest, QueryResponse,
+  RelatedResponse, SchemaResponse, OtlpTrace, ValuesRequest, ValuesResponse,
 } from "./types";
 
 /** The UI is a pure client app: it talks to lineage-api directly (CORS). */
@@ -40,6 +40,8 @@ const qs = (params: Record<string, string | number | undefined>) => {
 export const api = {
   schema: (signal?: AbortSignal) => request<SchemaResponse>("/schema", { signal }),
   events: (body: QueryRequest, signal?: AbortSignal) => request<QueryResponse>("/events/query", { method: "POST", body: JSON.stringify(body), signal }),
+  /** A field's values with counts over the runs matching `filters`, optionally narrowed by a substring. */
+  values: (body: ValuesRequest, signal?: AbortSignal) => request<ValuesResponse>("/events/values", { method: "POST", body: JSON.stringify(body), signal }),
   event: (runId: string, signal?: AbortSignal) => request<EventDetail>(`/events/${runId}`, { signal }),
   lineage: (runId: string, signal?: AbortSignal) => request<LineageGraph>(`/events/${runId}/lineage`, { signal }),
   rawEvents: (runId: string, signal?: AbortSignal) => request<{ events: Record<string, unknown>[] }>(`/events/${runId}/lineage?raw=true`, { signal }),
@@ -50,7 +52,7 @@ export const api = {
   logs: (runId: string, run: string, signal?: AbortSignal) => request<LogsResponse>(`/events/${runId}/logs${qs({ run })}`, { signal }),
   jobs: (params: { status?: string; cluster?: string; limit?: number } = {}, signal?: AbortSignal) => request<JobsResponse>(`/jobs${qs(params)}`, { signal }),
   job: (rayJobId: string, signal?: AbortSignal) => request<{ job: Job; ray?: Record<string, unknown> }>(`/jobs/${rayJobId}`, { signal }),
-  live: (signal?: AbortSignal) => request<LiveSnapshot>("/live", { signal }),
-  /** The live WebSocket: a snapshot, then deltas as runs change. */
-  liveWsUrl: () => `${API_BASE.replace(/^http/, "ws")}/live/ws`,
+  dashboard: (signal?: AbortSignal) => request<DashboardSnapshot>("/live", { signal }),
+  /** The events dashboard WebSocket (`/v1/live/ws`): a snapshot, then deltas as runs change. */
+  dashboardWsUrl: () => `${API_BASE.replace(/^http/, "ws")}/live/ws`,
 };

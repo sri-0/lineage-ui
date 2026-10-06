@@ -16,8 +16,8 @@ import { AlertCircle } from "lucide-react";
 import * as React from "react";
 import { EventsTable } from "./events-table";
 
-/** The Events tab: schema from the API, a persisted filter store, the grid. */
-export function EventsTab() {
+/** The lineage view (/lineage): every top-level run ever indexed. Schema from the API, a persisted filter store, the grid. */
+export function LineageView() {
   const { data: schema, isLoading, error } = useQuery(schemaOptions());
   if (isLoading) {
     return (

@@ -2,7 +2,7 @@ import type { ApiField, Filter, QueryRequest, SchemaResponse, Sort } from "@/lib
 import { toISO } from "./dates";
 import { facetable, gridFields } from "./fields";
 
-/** Data-table state keys that are not column filters (see the extra fields in events-tab.tsx). */
+/** Data-table state keys that are not column filters (see the extra fields in lineage-view.tsx). */
 export const STATE_KEYS = new Set(["sort", "uuid"]);
 
 function isEmpty(v: unknown) {

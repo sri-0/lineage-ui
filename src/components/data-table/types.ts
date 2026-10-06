@@ -36,6 +36,12 @@ export type Checkbox = {
   type: "checkbox";
   component?: (props: CheckboxOptionProps) => JSX.Element | null;
   options?: Option[];
+  /**
+   * Fetches values for the search box from the server: the options above are
+   * the top values of the current result set, this finds the rest (and
+   * searches within them), with document counts.
+   */
+  loadValues?: (q: string, signal?: AbortSignal) => Promise<{ value: string | number | boolean; total: number }[]>;
 };
 
 export type Slider = {

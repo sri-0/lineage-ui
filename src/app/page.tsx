@@ -1,5 +1,5 @@
-import { AppShell } from "@/components/shell/app-shell";
+import { redirect } from "next/navigation";
 
 export default function Page() {
-  return <AppShell />;
+  redirect("/events");
 }

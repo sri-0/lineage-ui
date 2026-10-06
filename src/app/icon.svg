@@ -1,14 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="64" height="64">
-  <!-- Iconmind needle-haystack (MIT) with a gradient stroke -->
+  <!-- lucide chart-no-axes-gantt with a gradient stroke -->
   <defs>
-    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="3" y1="4" x2="21" y2="20">
+    <linearGradient id="g" gradientUnits="userSpaceOnUse" x1="6" y1="6" x2="18" y2="18">
       <stop offset="0" stop-color="#6d5cf5"/>
       <stop offset="0.55" stop-color="#3b82f6"/>
       <stop offset="1" stop-color="#22d3ee"/>
     </linearGradient>
   </defs>
-  <g fill="none" stroke="url(#g)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M3 4h18"/><path d="M3 8h18"/><path d="M3 16h18"/><path d="M3 20h18"/>
+  <g fill="none" stroke="url(#g)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 6h10"/><path d="M6 12h9"/><path d="M11 18h7"/>
   </g>
-  <circle cx="12" cy="12" r="1.8" fill="url(#g)"/>
 </svg>

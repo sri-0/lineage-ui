@@ -8,8 +8,8 @@ const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Lineage",
-  description: "Processing events, OpenLineage lineage, traces and live jobs.",
+  title: "Haystack",
+  description: "Processing events dashboard, OpenLineage lineage, traces and logs.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

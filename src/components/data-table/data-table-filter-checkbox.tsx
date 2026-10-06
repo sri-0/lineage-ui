@@ -15,17 +15,46 @@ import {
   boxSurfaceClassName,
 } from "@/lib/style";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
-import { useState } from "react";
+import { LoaderCircle, Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import type { DataTableCheckboxFilterField } from "./types";
+
+type Remote = { value: string | number | boolean; total: number };
 
 export function DataTableFilterCheckbox<TData>({
   value: _value,
-  options,
+  options: facetOptions,
   component,
+  loadValues,
 }: DataTableCheckboxFilterField<TData>) {
   const value = _value as string;
   const [inputValue, setInputValue] = useState("");
+  // Values the server found for a search text; the facets only carry the top
+  // values. Kept with the text they answer, so a stale answer is simply ignored.
+  const [remote, setRemote] = useState<{ q: string; rows: Remote[] } | null>(null);
+  const q = inputValue.trim();
+  const searching = Boolean(loadValues && q && remote?.q !== q);
+  useEffect(() => {
+    if (!loadValues || q === "") return;
+    const ctrl = new AbortController();
+    const t = setTimeout(() => {
+      loadValues(q, ctrl.signal)
+        .then((rows) => {
+          if (!ctrl.signal.aborted) setRemote({ q, rows });
+        })
+        .catch(() => {});
+    }, 250);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
+  }, [q, loadValues]);
+  const options = useMemo(() => {
+    if (!q || !remote || remote.q !== q) return facetOptions;
+    const seen = new Set((facetOptions ?? []).map((o) => String(o.value)));
+    return [...(facetOptions ?? []), ...remote.rows.filter((r) => !seen.has(String(r.value))).map((r) => ({ label: String(r.value), value: r.value }))];
+  }, [facetOptions, remote, q]);
+  const remoteCounts = useMemo(() => new Map<unknown, number>((remote?.q === q ? remote.rows : []).map((r) => [r.value, r.total])), [remote, q]);
   const { table, columnFilters, isLoading, getFacetedUniqueValues } =
     useDataTable();
   const column = table.getColumn(value);
@@ -68,10 +97,10 @@ export function DataTableFilterCheckbox<TData>({
 
   return (
     <div className="grid gap-2">
-      {options && options.length > 4 ? (
+      {loadValues || (options && options.length > 4) ? (
         <InputGroup className="h-9 shadow-none">
           <InputGroupAddon>
-            <Search className="mt-0.5 h-4 w-4" />
+            {searching ? <LoaderCircle className="mt-0.5 h-4 w-4 animate-spin" /> : <Search className="mt-0.5 h-4 w-4" />}
           </InputGroupAddon>
           <InputGroupInput
             placeholder="Search"
@@ -127,6 +156,8 @@ export function DataTableFilterCheckbox<TData>({
                       <Skeleton className="h-4 w-4" />
                     ) : facetedValue?.has(option.value) ? (
                       formatCompactNumber(facetedValue.get(option.value) || 0)
+                    ) : remoteCounts.has(option.value) ? (
+                      formatCompactNumber(remoteCounts.get(option.value) || 0)
                     ) : null}
                   </span>
                   <button

@@ -1,10 +1,10 @@
 "use client";
 
 import { api } from "@/lib/api/client";
-import type { LiveMessage, LiveRun, LiveStats } from "@/lib/api/types";
+import type { DashboardMessage, DashboardRun, DashboardStats } from "@/lib/api/types";
 import { create } from "zustand";
 
-export type LiveConnection = "connecting" | "live" | "off";
+export type DashboardConnection = "connecting" | "live" | "off";
 type Counts = { queued: number; running: number; finished: number };
 
 /**
@@ -13,26 +13,26 @@ type Counts = { queued: number; running: number; finished: number };
  */
 export type Volatile = { progress?: number; message?: string; jobStatus?: string; updatedAt: string };
 
-type LiveStore = {
-  status: LiveConnection;
+type DashboardStore = {
+  status: DashboardConnection;
   /** Rows by top-level run id. A row object is replaced only when something the row shows has changed. */
-  runs: Record<string, LiveRun>;
+  runs: Record<string, DashboardRun>;
   /** Structural fingerprint per run, used to decide whether a row object must be replaced. */
   keys: Record<string, string>;
   volatile: Record<string, Volatile>;
   counts: Counts;
-  stats: LiveStats | null;
+  stats: DashboardStats | null;
   statsAt: number;
   at: string | null;
-  apply: (m: LiveMessage) => void;
-  setStatus: (s: LiveConnection) => void;
+  apply: (m: DashboardMessage) => void;
+  setStatus: (s: DashboardConnection) => void;
 };
 
 const STATS_EVERY_MS = 2000;
 
 /** Mirrors nested document values onto dotted keys (`promoted.project`) so the generated grid columns read them flat. */
-function flatten(r: LiveRun): LiveRun {
-  const out: LiveRun = { ...r };
+function flatten(r: DashboardRun): DashboardRun {
+  const out: DashboardRun = { ...r };
   for (const [k, v] of Object.entries(r)) {
     if (k.startsWith("_") || v === null || typeof v !== "object" || Array.isArray(v)) continue;
     for (const [sub, val] of Object.entries(v as Record<string, unknown>)) out[`${k}.${sub}`] = val;
@@ -41,7 +41,7 @@ function flatten(r: LiveRun): LiveRun {
 }
 
 /** Everything a row renders except progress; the START document itself never changes. */
-function rowKey(r: LiveRun): string {
+function rowKey(r: DashboardRun): string {
   return JSON.stringify([
     r._status, r._enriched, r._startedAt, r._endedAt, r._error, r._cluster, r._priority, r._queuePosition, r._current?.id,
     r._steps.map((s) => `${s.id}:${s.status}:${s.startedAt}:${s.endedAt ?? ""}`),
@@ -49,11 +49,11 @@ function rowKey(r: LiveRun): string {
   ]);
 }
 
-function volatileOf(r: LiveRun): Volatile {
+function volatileOf(r: DashboardRun): Volatile {
   return { progress: r._job?.progress, message: r._job?.message, jobStatus: r._job?.status, updatedAt: r._updatedAt };
 }
 
-function count(runs: Record<string, LiveRun>): Counts {
+function count(runs: Record<string, DashboardRun>): Counts {
   const c: Counts = { queued: 0, running: 0, finished: 0 };
   for (const r of Object.values(runs)) {
     if (r._status === "QUEUED") c.queued++;
@@ -63,7 +63,7 @@ function count(runs: Record<string, LiveRun>): Counts {
   return c;
 }
 
-export const useLive = create<LiveStore>()((set) => ({
+export const useDashboard = create<DashboardStore>()((set) => ({
   status: "connecting",
   runs: {},
   keys: {},
@@ -77,7 +77,7 @@ export const useLive = create<LiveStore>()((set) => ({
     set((s) => {
       const now = Date.now();
       if (m.type === "snapshot") {
-        const runs: Record<string, LiveRun> = {};
+        const runs: Record<string, DashboardRun> = {};
         const keys: Record<string, string> = {};
         const volatile: Record<string, Volatile> = {};
         for (const r of m.runs) {
@@ -135,25 +135,25 @@ export const useLive = create<LiveStore>()((set) => ({
 }));
 
 /**
- * Opens the live socket and keeps it open with exponential backoff. Returns a
- * disposer; call it once from the app shell.
+ * Opens the dashboard socket and keeps it open with exponential backoff.
+ * Returns a disposer; call it once from the app shell.
  */
-export function connectLive(): () => void {
+export function connectDashboard(): () => void {
   let ws: WebSocket | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let attempt = 0;
   let closed = false;
   const open = () => {
-    useLive.getState().setStatus("connecting");
-    ws = new WebSocket(api.liveWsUrl());
+    useDashboard.getState().setStatus("connecting");
+    ws = new WebSocket(api.dashboardWsUrl());
     ws.onopen = () => {
       attempt = 0;
-      useLive.getState().setStatus("live");
+      useDashboard.getState().setStatus("live");
     };
-    ws.onmessage = (e) => useLive.getState().apply(JSON.parse(e.data as string) as LiveMessage);
+    ws.onmessage = (e) => useDashboard.getState().apply(JSON.parse(e.data as string) as DashboardMessage);
     ws.onerror = () => ws?.close();
     ws.onclose = () => {
-      useLive.getState().setStatus("off");
+      useDashboard.getState().setStatus("off");
       if (closed) return;
       timer = setTimeout(open, Math.min(30_000, 1000 * 2 ** attempt++));
     };

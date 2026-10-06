@@ -3,8 +3,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type TabKind = "events" | "live";
-
 /** Which top-level run is open in the detail panel, and which panel tab. */
 export type DetailTab = "lineage" | "trace" | "logs" | "metadata" | "related";
 
@@ -12,9 +10,7 @@ export type DetailTab = "lineage" | "trace" | "logs" | "metadata" | "related";
 export type DetailPosition = "right" | "bottom";
 
 type Store = {
-  tab: TabKind;
-  setTab: (t: TabKind) => void;
-  /** Serialized data-table filter state for the events tab (Dates as epoch ms). */
+  /** Serialized data-table filter state for the lineage view (Dates as epoch ms). */
   eventFilters: Record<string, unknown>;
   setEventFilters: (f: Record<string, unknown>) => void;
   selectedRunId: string | null;
@@ -32,8 +28,6 @@ type Store = {
 export const useTabs = create<Store>()(
   persist(
     (set) => ({
-      tab: "events",
-      setTab: (tab) => set({ tab }),
       eventFilters: {},
       setEventFilters: (eventFilters) => set({ eventFilters }),
       selectedRunId: null,
@@ -48,9 +42,13 @@ export const useTabs = create<Store>()(
     }),
     {
       name: "lineage-ui.state",
-      version: 2,
-      partialize: (s) => ({ tab: s.tab, eventFilters: s.eventFilters, selectedRunId: s.selectedRunId, detailTab: s.detailTab, detailPosition: s.detailPosition }),
-      migrate: (persisted) => ({ detailPosition: "right", ...(persisted as object) }) as unknown as Store,
+      version: 3,
+      partialize: (s) => ({ eventFilters: s.eventFilters, selectedRunId: s.selectedRunId, detailTab: s.detailTab, detailPosition: s.detailPosition }),
+      // v2 kept the selected tab here; the view is the route now
+      migrate: (persisted) => {
+        const { tab: _tab, ...rest } = { detailPosition: "right", ...(persisted as Record<string, unknown>) } as Record<string, unknown>;
+        return rest as unknown as Store;
+      },
     },
   ),
 );
