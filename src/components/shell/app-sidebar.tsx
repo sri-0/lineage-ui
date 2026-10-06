@@ -12,11 +12,11 @@ import { Brand } from "./logo";
 import { ThemeToggle } from "./theme-toggle";
 
 const NAV: { view: View; href: string; label: string; tooltip: string; icon: typeof Radio }[] = [
-  { view: "events", href: "/events", label: "Events", tooltip: "Events dashboard", icon: Radio },
   { view: "lineage", href: "/lineage", label: "Lineage", tooltip: "Lineage", icon: GitBranch },
+  { view: "events", href: "/events", label: "Events", tooltip: "Events dashboard", icon: Radio },
 ];
 
-/** The one place for navigation: Events (the dashboard) and Lineage (everything indexed). */
+/** The one place for navigation: Lineage (everything indexed, the landing page) and Events (the dashboard). */
 export function AppSidebar({ view }: { view: View }) {
   const active = useDashboard((s) => s.counts.queued + s.counts.running);
   return (

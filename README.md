@@ -1,9 +1,9 @@
 # lineage-ui
 
-Next.js UI ("Haystack" in the title bar) for processing provenance. `/events` is the events dashboard:
-what the clusters are doing right now, fed over a WebSocket from the job store, with charts of
-in-flight work. `/lineage` is every top-level run ever indexed: a virtualised, infinite grid with
-schema-driven filters. Both share a detail panel (dock right or bottom) with Lineage (React Flow +
+Next.js UI ("Haystack" in the title bar) for processing provenance. `/lineage`, the landing page, is
+every top-level run ever indexed: a virtualised, infinite grid with schema-driven filters. `/events`
+is the events dashboard: what the clusters are doing right now, fed over a WebSocket from the job
+store, with charts of in-flight work. Both share a detail panel (dock right or bottom) with Lineage (React Flow +
 ELK), Trace (own Jaeger-style waterfall), Logs, Metadata and Related tabs. Same stack and
 conventions as `query-ui`.
 
