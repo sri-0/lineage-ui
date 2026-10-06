@@ -43,7 +43,9 @@ export function EventsTab() {
 }
 
 function Loaded({ schema }: { schema: SchemaResponse }) {
-  const eventFilters = useTabs((s) => s.eventFilters);
+  // Read once: the persisted filters only seed the store. Subscribing would re-render
+  // the whole grid every time the store writes them back.
+  const [eventFilters] = React.useState(() => useTabs.getState().eventFilters);
   const setEventFilters = useTabs((s) => s.setEventFilters);
   const tableSchema = React.useMemo(() => toTableSchema(schema), [schema]);
   const filterSchema = React.useMemo(() => {

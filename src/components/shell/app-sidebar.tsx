@@ -22,7 +22,7 @@ export function AppSidebar() {
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton size="lg" tooltip="Lineage" onClick={toggleSidebar} className="px-1">
+            <SidebarMenuButton size="lg" tooltip="Lineage" onClick={toggleSidebar} className="p-1 group-data-[collapsible=icon]:p-1!">
               <Brand compact={state === "collapsed"} />
             </SidebarMenuButton>
           </SidebarMenuItem>

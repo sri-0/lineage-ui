@@ -152,11 +152,30 @@ export type Job = {
 };
 export type JobsResponse = { jobs: Job[]; total: number };
 
-/** One plugin step of a live run (same shape as MiniRun plus end state). */
-export type LiveStep = MiniRun & { endedAt?: string; error?: string };
+/**
+ * One plugin step of a live run, keyed by Ray job id. The job-state store is
+ * the source; OpenLineage adds the plugin run id and exact timings once indexed.
+ */
+export type LiveStep = MiniRun & {
+  runId?: string;
+  endedAt?: string;
+  error?: string;
+  priority: number;
+  queuePosition?: number;
+  progress?: number;
+  message?: string;
+  queuedAt: string;
+};
 
-/** A live row: the top-level START document with list enrichment and live extras. */
+/**
+ * A live row: run state from the job store, plus the top-level START document
+ * (and the events list enrichment) once OpenLineage has been indexed
+ * (`_enriched`). Without it the document fields are simply absent.
+ */
 export type LiveRun = EventRow & {
+  _rootId: string;
+  _enriched: boolean;
+  _startedAt: string;
   _updatedAt: string;
   _steps: LiveStep[];
   _current: LiveStep | null;
@@ -166,14 +185,18 @@ export type LiveRun = EventRow & {
   _queuePosition: number | null;
 };
 
-export type LiveBucket = { t: number; events: number; started: number; completed: number; failed: number };
+/** Jobs per minute from job-store transitions. */
+export type LiveBucket = { t: number; started: number; finished: number; failed: number };
 export type LiveStats = {
   at: string;
+  source: string;
   byStatus: Record<string, number>;
   byPriority: { priority: number; count: number }[];
   byCluster: { cluster: string; running: number; queued: number }[];
   series: LiveBucket[];
   retain: string;
+  enriched: number;
+  runs: number;
 };
 export type LiveSnapshot = { type: "snapshot"; at: string; runs: LiveRun[]; stats: LiveStats };
 export type LiveDelta = { type: "delta"; at: string; runs?: LiveRun[]; removed?: string[]; stats?: LiveStats };

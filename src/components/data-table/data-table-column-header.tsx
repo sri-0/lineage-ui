@@ -1,7 +1,7 @@
 "use client";
 
 import { useControls } from "@/components/controls";
-import { useDataTable } from "@/components/data-table/data-table-provider";
+import { useDataTableRef } from "@/components/data-table/data-table-provider";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,7 +30,9 @@ const DRAG_TYPE = "application/x-column-id";
  */
 export function DataTableColumnHeader<TData extends RowData, TValue>({ column, title, className, ...props }: DataTableColumnHeaderProps<TData, TValue>) {
   const { setOpen } = useControls();
-  const { table } = useDataTable();
+  // The table is only needed when a drop happens; reading it through the ref
+  // keeps the header out of the per-tick context re-render.
+  const tableRef = useDataTableRef<TData>();
   const [dropSide, setDropSide] = React.useState<"left" | "right" | null>(null);
   const canSort = column.getCanSort();
   const canFilter = column.getCanFilter();
@@ -48,6 +50,7 @@ export function DataTableColumnHeader<TData extends RowData, TValue>({ column, t
     setDropSide(null);
     if (!dragged || dragged === column.id) return;
     e.preventDefault();
+    const table = tableRef.current.table;
     const current = table.state.columnOrder.length ? [...table.state.columnOrder] : table.getAllLeafColumns().map((c) => c.id);
     const from = current.indexOf(dragged);
     if (from >= 0) current.splice(from, 1);

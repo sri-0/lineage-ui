@@ -25,9 +25,33 @@ import { cn } from "@/lib/utils";
 import { Check, Eye, GripVertical } from "lucide-react";
 import { useMemo, useState } from "react";
 
+/**
+ * The trigger never changes, so it is one constant element: the table context
+ * changes on every data tick (a live grid ticks once a second) and this
+ * component re-renders with it, but React bails out of an identical element.
+ * The list itself mounts only while the popover is open.
+ */
+const TRIGGER = (
+  <PopoverTrigger asChild>
+    <Button variant="outline" size="icon" role="combobox" className="shadow-none">
+      <Eye className="h-4 w-4" />
+      <span className="sr-only">Show or hide columns</span>
+    </Button>
+  </PopoverTrigger>
+);
+
 export function DataTableViewOptions() {
-  const { table, enableColumnOrdering } = useDataTable();
   const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      {TRIGGER}
+      {open && <ViewOptionsContent />}
+    </Popover>
+  );
+}
+
+function ViewOptionsContent() {
+  const { table, enableColumnOrdering } = useDataTable();
   const [drag, setDrag] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -42,19 +66,6 @@ export function DataTableViewOptions() {
   );
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          size="icon"
-          role="combobox"
-          aria-expanded={open}
-          className="shadow-none"
-        >
-          <Eye className="h-4 w-4" />
-          <span className="sr-only">Show or hide columns</span>
-        </Button>
-      </PopoverTrigger>
       <PopoverContent side="bottom" align="end" className="w-[200px] p-0">
         <Command>
           <CommandInput
@@ -133,6 +144,5 @@ export function DataTableViewOptions() {
           </CommandList>
         </Command>
       </PopoverContent>
-    </Popover>
   );
 }

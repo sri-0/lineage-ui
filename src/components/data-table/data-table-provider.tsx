@@ -12,7 +12,7 @@ import type {
   SortingState,
   Table,
 } from "@tanstack/react-table";
-import { createContext, useContext, useMemo } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef } from "react";
 import { DataTableStoreSync } from "./data-table-store-sync";
 
 // REMINDER: read about how to move controlled state out of the useTable hook
@@ -73,6 +73,25 @@ export const DataTableContext = createContext<DataTableContextType<
   any
 > | null>(null);
 
+/**
+ * The latest table behind a stable reference. Event handlers that only need
+ * the table when they fire (a header's drag-and-drop reorder, say) read it from
+ * here instead of `useDataTable()`, so they do not re-render on every data
+ * change: in v9 the table object is new whenever its state or data changes,
+ * which on a live grid is once a second.
+ */
+const DataTableRefContext = createContext<React.RefObject<{ table: unknown }> | null>(null);
+
+export function useDataTableRef<TData extends RowData>() {
+  const ref = useContext(DataTableRefContext);
+  if (!ref) {
+    throw new Error("useDataTableRef must be used within a DataTableProvider");
+  }
+  // `TData` is invariant in v9, so the ref stores the table erased and the
+  // reader puts the type back, the same way `useDataTable` does.
+  return ref as unknown as React.RefObject<{ table: ReactTable<DataTableFeatures, TData> }>;
+}
+
 export function DataTableProvider<TData extends RowData, TValue>({
   children,
   ...props
@@ -80,6 +99,10 @@ export function DataTableProvider<TData extends RowData, TValue>({
   DataTableBaseContextType<TData, TValue> & {
     children: React.ReactNode;
   }) {
+  const latest = useRef<{ table: unknown }>({ table: props.table });
+  useEffect(() => {
+    latest.current.table = props.table;
+  });
   const value = useMemo(
     // eslint-disable-next-line react-hooks/preserve-manual-memoization
     () => ({
@@ -117,10 +140,12 @@ export function DataTableProvider<TData extends RowData, TValue>({
     // with — even though `any` is involved. React contexts cannot be generic,
     // so the erasure happens here and `useDataTable` casts it back.
     <DataTableContext.Provider value={value as DataTableContextType<any, any>}>
-      <ControlsProvider>
-        <DataTableStoreSync />
-        {children}
-      </ControlsProvider>
+      <DataTableRefContext.Provider value={latest}>
+        <ControlsProvider>
+          <DataTableStoreSync />
+          {children}
+        </ControlsProvider>
+      </DataTableRefContext.Provider>
     </DataTableContext.Provider>
   );
 }

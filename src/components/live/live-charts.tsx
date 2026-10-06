@@ -7,45 +7,46 @@ import { format } from "date-fns";
 import * as React from "react";
 import { Area, AreaChart, Bar, BarChart, XAxis, YAxis } from "recharts";
 
-const volumeConfig = {
-  events: { label: "Events", color: "var(--chart-1)" },
-  started: { label: "Files started", color: "var(--chart-2)" },
+const activityConfig = {
+  started: { label: "Jobs started", color: "var(--chart-1)" },
+  finished: { label: "Jobs finished", color: "var(--chart-2)" },
 } satisfies ChartConfig;
 
 const throughputConfig = {
-  completed: { label: "Completed", color: "var(--success)" },
+  ok: { label: "Succeeded", color: "var(--success)" },
   failed: { label: "Failed", color: "var(--error)" },
 } satisfies ChartConfig;
 
 const hhmm = (t: number) => format(t, "HH:mm");
 
 /**
- * Four compact panels above the live grid: what is in flight, event volume per
- * minute, files finished per minute, and the queue by priority. Recharts runs
- * without animation and the stats feed is throttled upstream, so redraws are
- * cheap even on slow machines.
+ * Four compact panels above the live grid, all from the job store: what is in
+ * flight, jobs started and finished per minute, throughput with the failure
+ * rate, and the queue by priority. Recharts runs without animation and the
+ * stats feed is throttled upstream, so redraws are cheap even on slow machines.
  */
 export const LiveCharts = React.memo(function LiveCharts() {
   const stats = useLive((s) => s.stats);
-  const series = stats?.series ?? [];
+  const series = React.useMemo(() => (stats?.series ?? []).map((b) => ({ ...b, ok: b.finished - b.failed })), [stats?.series]);
   const last5 = series.slice(-6, -1); // whole minutes only
-  const perMin = last5.length ? last5.reduce((n, b) => n + b.completed, 0) / last5.length : 0;
+  const perMin = last5.length ? last5.reduce((n, b) => n + b.finished, 0) / last5.length : 0;
   const failed = series.reduce((n, b) => n + b.failed, 0);
-  const completed = series.reduce((n, b) => n + b.completed, 0);
-  const events = series.reduce((n, b) => n + b.events, 0);
+  const finished = series.reduce((n, b) => n + b.finished, 0);
+  const started = series.reduce((n, b) => n + b.started, 0);
   const by = stats?.byStatus ?? {};
   const queued = by.QUEUED ?? 0;
   const running = by.RUNNING ?? 0;
   const maxPrio = Math.max(1, ...(stats?.byPriority.map((p) => p.count) ?? [1]));
+  const pending = stats ? stats.runs - stats.enriched : 0;
 
   return (
     <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
-      <Card title="In flight" value={`${queued + running}`} hint={`${stats?.retain ?? "15m"} window`}>
+      <Card title="In flight" value={`${queued + running}`} hint={`files · ${stats?.retain ?? "15m"} window${pending ? ` · ${pending} awaiting lineage` : ""}`}>
         <div className="mt-1 flex h-1.5 w-full overflow-hidden rounded-full bg-muted">
-          <Seg n={running} total={queued + running + completed + failed} className="bg-info" />
-          <Seg n={queued} total={queued + running + completed + failed} className="bg-muted-foreground/50" />
-          <Seg n={completed} total={queued + running + completed + failed} className="bg-success" />
-          <Seg n={failed} total={queued + running + completed + failed} className="bg-error" />
+          <Seg n={running} total={stats?.runs ?? 0} className="bg-info" />
+          <Seg n={queued} total={stats?.runs ?? 0} className="bg-muted-foreground/50" />
+          <Seg n={by.COMPLETE ?? 0} total={stats?.runs ?? 0} className="bg-success" />
+          <Seg n={by.FAIL ?? 0} total={stats?.runs ?? 0} className="bg-error" />
         </div>
         <dl className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1 text-[11px]">
           <Stat dot="bg-info" label="Running" n={running} />
@@ -60,37 +61,37 @@ export const LiveCharts = React.memo(function LiveCharts() {
         ) : null}
       </Card>
 
-      <Card title="Event volume" value={events.toLocaleString()} hint="events / min, last hour">
-        <ChartContainer config={volumeConfig} className="mt-1 h-20 w-full aspect-auto">
+      <Card title="Job activity" value={started.toLocaleString()} hint="jobs started / min, last hour">
+        <ChartContainer config={activityConfig} className="mt-1 h-20 w-full aspect-auto">
           <AreaChart data={series} margin={{ top: 4, right: 0, bottom: 0, left: 0 }}>
             <defs>
-              <linearGradient id="live-fill-events" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="var(--color-events)" stopOpacity={0.5} />
-                <stop offset="100%" stopColor="var(--color-events)" stopOpacity={0.05} />
+              <linearGradient id="live-fill-started" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="var(--color-started)" stopOpacity={0.5} />
+                <stop offset="100%" stopColor="var(--color-started)" stopOpacity={0.05} />
               </linearGradient>
             </defs>
             <XAxis dataKey="t" tickFormatter={hhmm} tickLine={false} axisLine={false} minTickGap={48} fontSize={10} height={14} />
             <YAxis hide domain={[0, "dataMax"]} />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => hhmm((p?.[0]?.payload as { t: number })?.t ?? 0)} />} />
-            <Area type="monotone" dataKey="events" stroke="var(--color-events)" strokeWidth={1.5} fill="url(#live-fill-events)" isAnimationActive={false} />
-            <Area type="monotone" dataKey="started" stroke="var(--color-started)" strokeWidth={1.5} fill="transparent" isAnimationActive={false} />
+            <Area type="monotone" dataKey="started" stroke="var(--color-started)" strokeWidth={1.5} fill="url(#live-fill-started)" isAnimationActive={false} />
+            <Area type="monotone" dataKey="finished" stroke="var(--color-finished)" strokeWidth={1.5} fill="transparent" isAnimationActive={false} />
           </AreaChart>
         </ChartContainer>
       </Card>
 
-      <Card title="Throughput" value={`${perMin.toFixed(1)}/min`} hint={`files finished · ${completed + failed ? Math.round((failed / (completed + failed)) * 100) : 0}% failed`}>
+      <Card title="Throughput" value={`${perMin.toFixed(1)}/min`} hint={`jobs finished · ${finished ? Math.round((failed / finished) * 100) : 0}% failed`}>
         <ChartContainer config={throughputConfig} className="mt-1 h-20 w-full aspect-auto">
           <BarChart data={series} margin={{ top: 4, right: 0, bottom: 0, left: 0 }} barCategoryGap={1}>
             <XAxis dataKey="t" tickFormatter={hhmm} tickLine={false} axisLine={false} minTickGap={48} fontSize={10} height={14} />
             <YAxis hide />
             <ChartTooltip content={<ChartTooltipContent labelFormatter={(_, p) => hhmm((p?.[0]?.payload as { t: number })?.t ?? 0)} />} />
-            <Bar dataKey="completed" stackId="a" fill="var(--color-completed)" isAnimationActive={false} />
+            <Bar dataKey="ok" stackId="a" fill="var(--color-ok)" isAnimationActive={false} />
             <Bar dataKey="failed" stackId="a" fill="var(--color-failed)" radius={[2, 2, 0, 0]} isAnimationActive={false} />
           </BarChart>
         </ChartContainer>
       </Card>
 
-      <Card title="Waiting by priority" value={`${queued}`} hint="files queued, higher priority first">
+      <Card title="Waiting by priority" value={`${stats?.byPriority.reduce((n, p) => n + p.count, 0) ?? 0}`} hint="jobs queued, higher priority first">
         <div className="mt-1.5 flex flex-col gap-1">
           {stats?.byPriority.length ? (
             stats.byPriority.map((p) => (

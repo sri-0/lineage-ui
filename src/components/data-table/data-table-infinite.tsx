@@ -337,6 +337,34 @@ export function DataTableInfinite<TData extends RowData>({
   const paddingBottom = virtualRows.length > 0 ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1]!.end : 0;
 
   /**
+   * The virtualiser finds a measured row by its `data-index`. That index is not
+   * a prop of the row: a new row at the top would shift every index below it and
+   * re-render every row for an attribute. Instead the index is written onto the
+   * `<tr>` imperatively, when the row mounts (`measure`) and after every render
+   * (the layout effect), and the row memo ignores it.
+   */
+  const rowIndexRef = React.useRef(new Map<string, number>());
+  rowIndexRef.current = new Map(rows.map((r, i) => [r.id, i]));
+  const measure = React.useCallback(
+    (el: HTMLTableRowElement | null) => {
+      if (!el) return;
+      const index = rowIndexRef.current.get(el.id);
+      if (index === undefined) return;
+      el.dataset.index = String(index);
+      virtualizer.measureElement(el);
+    },
+    [virtualizer],
+  );
+  React.useLayoutEffect(() => {
+    const body = tableRef.current?.tBodies[0];
+    if (!body) return;
+    for (const tr of body.rows) {
+      const index = rowIndexRef.current.get(tr.id);
+      if (index !== undefined && tr.dataset.index !== String(index)) tr.dataset.index = String(index);
+    }
+  });
+
+  /**
    * REMINDER: the detail row id is deliberately *not* read here.
    * Subscribing to it at this level re-rendered the entire table on every
    * detail click, and — because the callback closed over it — handed every
@@ -407,60 +435,19 @@ export function DataTableInfinite<TData extends RowData>({
                 onScroll={onScroll}
                 // REMINDER: https://stackoverflow.com/questions/50361698/border-style-do-not-work-with-sticky-position-element
                 className="border-separate border-spacing-0"
-                containerClassName="max-h-full"
+                // `overflow-anchor: none`: when a page is appended, its spacer lands above
+                // the "Load More" row the viewport is anchored to, and the browser would
+                // scroll down to keep that row in view, leaving us "at the bottom" again and
+                // fetching the next page in a loop.
+                containerClassName="max-h-full [overflow-anchor:none]"
               >
                 <TableHeader className={cn("bg-background sticky top-0 z-20")}>
-                  {table.getHeaderGroups().map((headerGroup) => (
-                    <TableRow
-                      key={headerGroup.id}
-                      className={cn(
-                        "bg-muted/50 hover:bg-muted/50",
-                        "*:border-t [&>:not(:last-child)]:border-r",
-                      )}
-                    >
-                      {headerGroup.headers.map((header) => {
-                        return (
-                          <TableHead
-                            key={header.id}
-                            style={columnSizeStyle(
-                              header.column,
-                              `--header-${header.id.replaceAll(".", "-")}-size`,
-                              "min",
-                            )}
-                            className={cn(
-                              "border-border relative truncate border-b select-none last:[&>.cursor-col-resize]:opacity-0",
-                              header.column.columnDef.meta?.headerClassName,
-                            )}
-                            aria-sort={
-                              header.column.getIsSorted() === "asc"
-                                ? "ascending"
-                                : header.column.getIsSorted() === "desc"
-                                  ? "descending"
-                                  : "none"
-                            }
-                          >
-                            {header.isPlaceholder
-                              ? null
-                              : flexRender(
-                                  header.column.columnDef.header,
-                                  header.getContext(),
-                                )}
-                            {header.column.getCanResize() && (
-                              <div
-                                onDoubleClick={() => header.column.resetSize()}
-                                onMouseDown={header.getResizeHandler()}
-                                onTouchStart={header.getResizeHandler()}
-                                className={cn(
-                                  "user-select-none absolute top-0 -right-2 z-10 flex h-full w-4 cursor-col-resize touch-none justify-center",
-                                  "before:bg-border before:absolute before:inset-y-0 before:w-px before:translate-x-px",
-                                )}
-                              />
-                            )}
-                          </TableHead>
-                        );
-                      })}
-                    </TableRow>
-                  ))}
+                  <HeaderRows
+                    headerGroups={table.getHeaderGroups()}
+                    sorting={table.state.sorting}
+                    columnSizing={table.state.columnSizing}
+                    columnResizing={table.state.columnResizing}
+                  />
                 </TableHeader>
                 <TableBody
                   id="content"
@@ -481,8 +468,7 @@ export function DataTableInfinite<TData extends RowData>({
                             {renderLiveRow?.({ row })}
                             <MemoizedRow
                               row={row}
-                              index={virtualRow.index}
-                              measure={virtualizer.measureElement}
+                              measure={measure}
                               selected={row.getIsSelected()}
                               isMultiSelect={hasSelectColumn}
                               onRowClick={onRowClick}
@@ -598,6 +584,78 @@ function FilterPanel({ tableId, footerSlot }: { tableId: string; footerSlot?: Re
 }
 
 /**
+ * The header cells, memoised against data changes. `getHeaderGroups()` is
+ * memoised by the table on columns, visibility and order, so its identity only
+ * changes when the headers would; sorting and sizing state are passed
+ * explicitly because the cells read them through the column API.
+ */
+const HeaderRows = React.memo(function HeaderRows<TData extends RowData>({
+  headerGroups,
+}: {
+  headerGroups: ReturnType<TTable<DataTableFeatures, TData>["getHeaderGroups"]>;
+  sorting: SortingState;
+  columnSizing: unknown;
+  columnResizing: unknown;
+}) {
+  return headerGroups.map((headerGroup) => (
+    <TableRow
+      key={headerGroup.id}
+      className={cn(
+        "bg-muted/50 hover:bg-muted/50",
+        "*:border-t [&>:not(:last-child)]:border-r",
+      )}
+    >
+      {headerGroup.headers.map((header) => {
+        return (
+          <TableHead
+            key={header.id}
+            style={columnSizeStyle(
+              header.column,
+              `--header-${header.id.replaceAll(".", "-")}-size`,
+              "min",
+            )}
+            className={cn(
+              "border-border relative truncate border-b select-none last:[&>.cursor-col-resize]:opacity-0",
+              header.column.columnDef.meta?.headerClassName,
+            )}
+            aria-sort={
+              header.column.getIsSorted() === "asc"
+                ? "ascending"
+                : header.column.getIsSorted() === "desc"
+                  ? "descending"
+                  : "none"
+            }
+          >
+            {header.isPlaceholder
+              ? null
+              : flexRender(
+                  header.column.columnDef.header,
+                  header.getContext(),
+                )}
+            {header.column.getCanResize() && (
+              <div
+                onDoubleClick={() => header.column.resetSize()}
+                onMouseDown={header.getResizeHandler()}
+                onTouchStart={header.getResizeHandler()}
+                className={cn(
+                  "user-select-none absolute top-0 -right-2 z-10 flex h-full w-4 cursor-col-resize touch-none justify-center",
+                  "before:bg-border before:absolute before:inset-y-0 before:w-px before:translate-x-px",
+                )}
+              />
+            )}
+          </TableHead>
+        );
+      })}
+    </TableRow>
+  ));
+}) as <TData extends RowData>(props: {
+  headerGroups: ReturnType<TTable<DataTableFeatures, TData>["getHeaderGroups"]>;
+  sorting: SortingState;
+  columnSizing: unknown;
+  columnResizing: unknown;
+}) => React.ReactNode;
+
+/**
  * REMINDER: this is the heaviest component in the table if lots of rows
  * Some other components are rendered more often necessary, but are fixed size (not like rows that can grow in height)
  * e.g. DataTableFilterControls, DataTableFilterCommand, DataTableToolbar, DataTableHeader
@@ -605,7 +663,6 @@ function FilterPanel({ tableId, footerSlot }: { tableId: string; footerSlot?: Re
 
 function Row<TData extends RowData>({
   row,
-  index,
   measure,
   selected,
   isMultiSelect,
@@ -613,9 +670,7 @@ function Row<TData extends RowData>({
   getRowClassName,
 }: {
   row: Row<DataTableFeatures, TData>;
-  /** Position in the row model; the virtualiser reads it back from `data-index`. */
-  index: number;
-  /** `virtualizer.measureElement`: records the rendered height of this row. */
+  /** Stamps the row's `data-index` and hands it to the virtualiser to measure. */
   measure: (el: HTMLTableRowElement | null) => void;
   // REMINDER: row.getIsSelected(); - just for memoization
   selected?: boolean;
@@ -652,7 +707,6 @@ function Row<TData extends RowData>({
     <TableRow
       id={row.id}
       ref={measure}
-      data-index={index}
       tabIndex={0}
       // Single-select: data-state="selected" for the selected row
       // Multi-select: data-detail + data-checked are independent (a row can be both)
@@ -754,7 +808,7 @@ const MemoizedRow = React.memo(
   (prev, next) =>
     prev.row.id === next.row.id &&
     prev.row.original === next.row.original &&
-    prev.index === next.index &&
+    prev.measure === next.measure &&
     prev.selected === next.selected &&
     prev.isMultiSelect === next.isMultiSelect &&
     prev.onRowClick === next.onRowClick &&

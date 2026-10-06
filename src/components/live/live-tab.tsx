@@ -24,7 +24,7 @@ import { generateColumns, getDefaultColumnVisibility } from "@/lib/table-schema"
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import { AlertCircle, Radio, Search } from "lucide-react";
+import { AlertCircle, CircleDashed, Radio, Search } from "lucide-react";
 import * as React from "react";
 import { LiveCharts } from "./live-charts";
 
@@ -205,7 +205,7 @@ function LiveBadge({ status, className }: { status: LiveConnection; className?: 
 /** Text the quick search matches against: identifiers, file, project, current and queued plugin. */
 function haystack(r: LiveRun, schema: SchemaResponse): string {
   const p = schema.paths;
-  return [r._runId, r._cluster, r._current?.plugin, r._job?.plugin, r._job?.rayJobId, r._job?.submissionId, r[p.filename ?? ""], r[p.project ?? ""], r[p.rootId ?? ""], r[p.controlset ?? ""], r[p.mimetype ?? ""]]
+  return [r._runId, r._rootId, r._cluster, r._current?.plugin, r._job?.plugin, r._job?.rayJobId, r._job?.submissionId, r[p.filename ?? ""], r[p.project ?? ""], r[p.rootId ?? ""], r[p.controlset ?? ""], r[p.mimetype ?? ""]]
     .flat()
     .filter(Boolean)
     .join(" ")
@@ -215,7 +215,7 @@ function haystack(r: LiveRun, schema: SchemaResponse): string {
 /** Running first (newest start on top), then the queue by priority and position, then recently finished. */
 function byDefaultOrder(timeField: string) {
   const rank = (s: string) => (s === "RUNNING" ? 0 : s === "QUEUED" ? 1 : 2);
-  const t = (r: LiveRun) => Date.parse(String(r[timeField] ?? r._updatedAt));
+  const t = (r: LiveRun) => Date.parse(String(r[timeField] ?? r._startedAt));
   return (a: LiveRun, b: LiveRun) => {
     const ra = rank(a._status);
     const rb = rank(b._status);
@@ -237,7 +237,12 @@ function liveColumns(timeField: string): ColumnDef<DataTableFeatures, LiveRun>[]
       header: "Status",
       size: 105,
       enableResizing: true,
-      cell: ({ row }) => <RunStatusPill status={row.original._status} />,
+      cell: ({ row }) => (
+        <span className="flex items-center gap-1.5">
+          <RunStatusPill status={row.original._status} />
+          {!row.original._enriched && <CircleDashed className="size-3.5 shrink-0 text-muted-foreground/70" aria-label="OpenLineage events not indexed yet" />}
+        </span>
+      ),
       meta: { label: "Status" },
     },
     {
@@ -327,7 +332,8 @@ function StepCell({ run }: { run: LiveRun }) {
       </span>
     );
   }
-  return <span className="text-xs text-muted-foreground">{n} steps{run._error ? ` · ${run._error}` : ""}</span>;
+  const err = run._error || run._steps.find((s) => s.error)?.error;
+  return <span className="truncate text-xs text-muted-foreground">{n} steps{err ? ` · ${err}` : ""}</span>;
 }
 
 /**
@@ -362,7 +368,7 @@ function Elapsed({ run, timeField }: { run: LiveRun; timeField: string }) {
   const now = useNow();
   if (run._durationMs !== null && run._durationMs !== undefined) return <span className="font-mono text-xs">{formatDuration(run._durationMs)}</span>;
   // queued: time waiting since the job was queued; running: time since the file started
-  const since = run._status === "QUEUED" ? Date.parse(run._job?.queuedAt ?? run._updatedAt) : Date.parse(String(run[timeField] ?? run._updatedAt));
+  const since = run._status === "QUEUED" ? Date.parse(run._job?.queuedAt ?? run._startedAt) : Date.parse(String(run[timeField] ?? run._startedAt));
   const ms = Math.max(0, now - (Number.isFinite(since) ? since : now));
   return <span className="font-mono text-xs tabular-nums">{formatDuration(ms)}</span>;
 }

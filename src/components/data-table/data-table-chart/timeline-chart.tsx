@@ -104,7 +104,15 @@ interface TimelineChartProps<TChart extends BaseChartSchema> {
   series?: TimelineChartSeries[];
 }
 
-export function TimelineChart<TChart extends BaseChartSchema>({
+/**
+ * Memoised: the table re-renders on every page fetch and live tick, and a
+ * recharts chart that re-renders restarts its bar animation (~30 frames of
+ * every bar). The props are stable between data changes (`data` is the first
+ * page's meta, `series` is memoised by the caller), so the memo holds.
+ */
+export const TimelineChart = React.memo(TimelineChartImpl) as typeof TimelineChartImpl;
+
+function TimelineChartImpl<TChart extends BaseChartSchema>({
   data,
   className,
   columnId,
@@ -346,6 +354,8 @@ export function TimelineChart<TChart extends BaseChartSchema>({
               dataKey={key}
               stackId="a"
               fill={`var(--color-${key})`}
+              // no entry animation: each animation frame re-renders every bar
+              isAnimationActive={false}
             />
           ))}
           {refArea && (

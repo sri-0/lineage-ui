@@ -43,8 +43,8 @@ function flatten(r: LiveRun): LiveRun {
 /** Everything a row renders except progress; the START document itself never changes. */
 function rowKey(r: LiveRun): string {
   return JSON.stringify([
-    r._status, r._endedAt, r._error, r._cluster, r._priority, r._queuePosition, r._current?.id,
-    r._steps.map((s) => `${s.id}:${s.status}:${s.endedAt ?? ""}`),
+    r._status, r._enriched, r._startedAt, r._endedAt, r._error, r._cluster, r._priority, r._queuePosition, r._current?.id,
+    r._steps.map((s) => `${s.id}:${s.status}:${s.startedAt}:${s.endedAt ?? ""}`),
     r._job?.rayJobId, r._job?.status, r._job?.queuedAt, r._job?.plugin,
   ]);
 }

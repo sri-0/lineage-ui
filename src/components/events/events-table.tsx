@@ -77,14 +77,21 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
   const queryClient = useQueryClient();
   const { data, isFetching, isLoading, fetchNextPage, hasNextPage, error } = useInfiniteQuery(options);
   // The generated columns read dotted keys flat (`row["promoted.project"]`), so mirror nested values onto those keys.
+  // Flattened rows are cached per source row: react-query keeps earlier pages referentially stable when a page is
+  // appended, so rows already on screen keep their identity and the row memo holds instead of re-rendering them all.
   const dotted = React.useMemo(() => gridFields(schema).map((f) => f.name).filter((n) => n.includes(".")), [schema]);
+  // one cache per set of dotted keys; a new schema starts a new one
+  const flatCache = React.useMemo(() => new WeakMap<EventRow, EventRow>(), [dotted]);
   const rows = React.useMemo(
     () => (data?.pages.flatMap((p) => p.data) ?? []).map((r) => {
+      const cached = flatCache.get(r);
+      if (cached) return cached;
       const out: EventRow = { ...r };
       for (const key of dotted) out[key] = at(r, key);
+      flatCache.set(r, out);
       return out;
     }),
-    [data?.pages, dotted],
+    [data?.pages, dotted, flatCache],
   );
   const meta: QueryMeta | undefined = data?.pages[0]?.meta;
   const facets = React.useMemo(() => (meta?.facets ? Object.fromEntries(Object.entries(meta.facets).map(([k, f]) => [k, { ...f, rows: f.rows ?? [] }])) : undefined), [meta]);
@@ -100,9 +107,12 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
     [meta?.chartSeries],
   );
   const refresh = React.useCallback(() => queryClient.resetQueries({ queryKey: options.queryKey, exact: true }), [queryClient, options.queryKey]);
+  // Stable: the row memo compares it by identity.
+  const rowClass = React.useCallback((row: { original: EventRow }) => (row.original._status === "FAIL" ? "bg-error/5 hover:bg-error/10" : ""), []);
 
   // Row click (detail state `uuid`) opens the right-hand panel.
   const uuid = state.uuid as string | null | undefined;
+
   React.useEffect(() => {
     if (uuid) open(uuid);
   }, [uuid, open]);
@@ -125,7 +135,7 @@ export function EventsTable({ schema, tableSchema, filterSchema }: Props) {
         fetchNextPage={fetchNextPage}
         hasNextPage={hasNextPage}
         getRowId={(row) => row._runId}
-        getRowClassName={(row) => (row.original._status === "FAIL" ? "bg-error/5 hover:bg-error/10" : "")}
+        getRowClassName={rowClass}
         getFacetedUniqueValues={getFacetedUniqueValues(facets)}
         getFacetedMinMaxValues={getFacetedMinMaxValues(facets)}
         chartSlot={schema.timeField ? <TimelineChart data={meta?.chartData ?? []} columnId={schema.timeField} series={series} className="-mb-2" /> : undefined}
